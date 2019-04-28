@@ -23,10 +23,11 @@ public class MainActivity extends FlutterActivity implements MethodChannel.Metho
     public void onMethodCall(MethodCall call, MethodChannel.Result result) {
 
         if (call.method.equals("getResource")) {
-            Map<String, Integer> map = new LinkedHashMap<>();
+            Map<String, Object> map = new LinkedHashMap<>();
             map.put("iconSmallResId", R.mipmap.ic_launcher_round);
             map.put("iconLargeResId", R.mipmap.ic_launcher_round);
             map.put("soundResId", R.raw.notify_message);
+            map.put("version", "android");
             result.success(map);
         } else {
             result.notImplemented();

@@ -41,7 +41,7 @@ class FlutterNotificationPlugin {
   final int soundResId;
   static Function(int notifyId, String message) onMessageCallBack;
   static const MethodChannel _channelMethod =
-      const MethodChannel('flutter_notification_plugin');
+      const MethodChannel('flutter_notification_plugin_method');
   static const _channelEvent =
       const EventChannel('flutter_notification_plugin_event');
 
@@ -52,7 +52,9 @@ class FlutterNotificationPlugin {
     {
     this.iconLargeResId, //通知大图标
     this.soundResId, //通知的铃声
-  });
+  }) {
+    _channelEvent.receiveBroadcastStream().listen(_onData, onError: _onError);
+  }
 
   ///判断是否开启了通知
   Future<bool> areNotificationsEnabled() async {
@@ -65,7 +67,7 @@ class FlutterNotificationPlugin {
       {Function(int notifyId, String message) onMessageCallBack}) {
     assert(this.channel != null);
     assert(this.channelName != null);
-//    assert(this.iconSmallResId != null);
+    assert(this.iconSmallResId != null);
     FlutterNotificationPlugin.onMessageCallBack = onMessageCallBack;
     _channelMethod.invokeMethod('notify', {
       'channel': 'flutter_channel',
@@ -77,12 +79,15 @@ class FlutterNotificationPlugin {
       'title': title,
       'message': message
     });
-
-    _channelEvent.receiveBroadcastStream().listen(_onData, onError: _onError);
   }
 
   void _onData(Object object) {
-    print('event - > $object');
+    if (object != null) {
+      Map map = object;
+      int notifyId = map['notifyId'];
+      String message = map['message'];
+      onMessageCallBack(notifyId, message);
+    }
   }
 
   void _onError(Object error) {

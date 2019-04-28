@@ -13,6 +13,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String _platformVersion = 'Unknown';
+  static const MethodChannel _channelMethod = const MethodChannel('android');
 
   @override
   void initState() {
@@ -25,10 +26,25 @@ class _MyAppState extends State<MyApp> {
     String platformVersion;
     // Platform messages may fail, so we use a try/catch PlatformException.
     try {
-      var notificationPlugin = FlutterNotificationPlugin('渠道', '描述', null);
+      final Map resourceMap = await _channelMethod.invokeMethod('getResource');
+      var iconSmallResId = resourceMap['iconSmallResId'];
+      var iconLargeResId = resourceMap['iconLargeResId'];
+      var soundResId = resourceMap['soundResId'];
+      platformVersion = resourceMap['version'];
+
+      print(
+          'iconSmallResId -> $iconSmallResId , iconLargeResId -> $iconLargeResId , soundResId -> $soundResId');
+
+      var notificationPlugin = FlutterNotificationPlugin(
+          'channel', 'channelName', iconSmallResId,
+          iconLargeResId: iconLargeResId, soundResId: soundResId);
+
+      var enabled = await notificationPlugin.areNotificationsEnabled();
+      print('通知权限是否已开启：$enabled');
+
       notificationPlugin.notify(10086, '标题', '信息',
           onMessageCallBack: (int notifyId, String message) {
-        print('点击了通知栏');
+        print('点击了通知栏 notifyId -> $notifyId , message -> $message');
       });
     } on PlatformException {
       platformVersion = 'Failed to get platform version.';

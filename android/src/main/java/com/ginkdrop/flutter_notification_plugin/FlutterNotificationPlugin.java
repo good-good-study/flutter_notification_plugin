@@ -13,7 +13,7 @@ import java.util.Map;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
+import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
@@ -21,15 +21,17 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 /**
  * FlutterNotificationPlugin
  */
-public class FlutterNotificationPlugin extends FlutterChannel implements MethodCallHandler {
+public class FlutterNotificationPlugin implements MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
-    private static final String DEFAULT_CHANNEL = "DEFAULT_CHANNEL";
-    private static final String DEFAULT_CHANNEL_NAME = "DEFAULT_CHANNEL_NAME";
     private static Registrar registrar;
     private static EventChannel.EventSink eventSink;
-    private static final String ACTION_NOTIFY_INTENT = "ACTION_NOTIFY_INTENT";
-    private static final String ACTION_NOTIFY_ID = "ACTION_NOTIFY_ID";
     private static final String TAG = "FlutterNotification";
+    private static final String DEFAULT_CHANNEL = "DEFAULT_CHANNEL";
+    private static final String DEFAULT_CHANNEL_NAME = "DEFAULT_CHANNEL_NAME";
+    private static final String ACTION_NOTIFY_ID = "ACTION_NOTIFY_ID";
+    private static final String ACTION_NOTIFY_INTENT = "ACTION_NOTIFY_INTENT";
+    private static String CHANNEL_EVENT = "flutter_notification_plugin_event";
+    private static String CHANNEL_METHOD = "flutter_notification_plugin_method";
 
     /**
      * Plugin registration.
@@ -40,12 +42,18 @@ public class FlutterNotificationPlugin extends FlutterChannel implements MethodC
             // We stop the registration process as this plugin is foreground only.
             return;
         }
+
         FlutterNotificationPlugin.registrar = registrar;
-        registerChannel(registrar.view(), "flutter_notification_plugin_event", "flutter_notification_plugin");
+        //注册通道
+        final MethodChannel channelMethod = new MethodChannel(registrar.messenger(), CHANNEL_METHOD);
+        final EventChannel channelEvent = new EventChannel(registrar.messenger(), CHANNEL_EVENT);
+        FlutterNotificationPlugin plugin = new FlutterNotificationPlugin();
+        channelEvent.setStreamHandler(plugin);
+        channelMethod.setMethodCallHandler(plugin);
+        //当通知栏点击时调用(实则监听的是pendingIntent)
         registrar.addNewIntentListener(new PluginRegistry.NewIntentListener() {
             @Override
             public boolean onNewIntent(Intent intent) {
-                Log.e(TAG, "onNewIntent , " + intent.toString());
                 String stringExtra = intent.getStringExtra(ACTION_NOTIFY_INTENT);
                 int intExtra = intent.getIntExtra(ACTION_NOTIFY_ID, 0);
                 if (ACTION_NOTIFY_INTENT.equals(stringExtra)) {
@@ -64,13 +72,17 @@ public class FlutterNotificationPlugin extends FlutterChannel implements MethodC
 
     @Override
     public void onListen(Object o, EventChannel.EventSink eventSink) {
-        super.onListen(o, eventSink);
         FlutterNotificationPlugin.eventSink = eventSink;
+        Log.e(TAG, String.format("onListen"));
+    }
+
+    @Override
+    public void onCancel(Object o) {
+        Log.e(TAG, String.format("onCancel"));
     }
 
     @Override
     public void onMethodCall(MethodCall call, Result result) {
-        super.onMethodCall(call, result);
         if (call.method.equals("areNotificationsEnabled")) {
             boolean enabled = NotificationManagerCompat.from(registrar.context()).areNotificationsEnabled();
             result.success(enabled);
