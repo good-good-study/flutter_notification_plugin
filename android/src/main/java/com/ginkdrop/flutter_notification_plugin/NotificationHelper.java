@@ -21,7 +21,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.media.AudioAttributes;
@@ -36,17 +35,20 @@ import android.text.TextUtils;
  * <p>
  * 从Android 8.1（API级别27）开始，如果同一时间发布了多个通知的话 ,只有第一个通知会发出声音
  */
-public class NotificationHelper extends ContextWrapper {
+public class NotificationHelper {
     private Uri soundUri;
     private NotificationManager manager;
-    public static final String DEFAULT_CHANNEL = "DEFAULT";
+    private Context context;
+    public static final String DEFAULT_CHANNEL = "DEFAULT_CHANNEL";
+    public static final String DEFAULT_CHANNEL_NAME = "DEFAULT_CHANNEL_NAME";
+    public String currentChannle;
 
     /**
      * 获取 notification manager.
      */
     public NotificationManager getManager() {
         if (manager == null) {
-            manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         }
         return manager;
     }
@@ -56,21 +58,26 @@ public class NotificationHelper extends ContextWrapper {
      * <p>
      * note : 必须在notify() 之前创建 重复创建已有的通道,不会有任何影响 so,尽情的 Create吧
      */
-    public NotificationHelper(Context ctx, String channelId, String channelName, int... soundResId) {
-        super(ctx);
-        soundUri = soundResId == null || soundResId.length == 0 || soundResId[0] == 0 ? null : Uri.parse("android.resource://" + getPackageName() + "/" + soundResId[0]);
+    public NotificationHelper(Context context, String channelId, String channelName, int... soundResId) {
+        this.context = context;
+        this.currentChannle = channelId;
+        soundUri = soundResId == null || soundResId.length == 0 || soundResId[0] == 0 ? null : Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId[0]);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             AudioAttributes att = new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build();
-            NotificationChannel channel = new NotificationChannel(!TextUtils.isEmpty(channelId) ? channelId : DEFAULT_CHANNEL,
-                    !TextUtils.isEmpty(channelName) ? channelName : "我的通知Channel", NotificationManager.IMPORTANCE_HIGH);
+            NotificationChannel channel = new NotificationChannel(
+                    TextUtils.isEmpty(channelId) ? DEFAULT_CHANNEL : channelId,
+                    TextUtils.isEmpty(channelName) ? DEFAULT_CHANNEL_NAME : channelName,
+                    NotificationManager.IMPORTANCE_HIGH);
+
             channel.setSound(soundUri, att);
             channel.setLightColor(Color.YELLOW);
             channel.setShowBadge(true);
             channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-            getManager().createNotificationChannel(channel);
+            getManager().createNotificationChannel(channel);//创建通道
         }
     }
 
@@ -80,9 +87,9 @@ public class NotificationHelper extends ContextWrapper {
     private NotificationCompat.Builder getNotificationBuilderByChannel(String... channel) {
         NotificationCompat.Builder builder;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder = new NotificationCompat.Builder(getApplicationContext(), channel == null || channel.length == 0 ? DEFAULT_CHANNEL : channel[0]);
+            builder = new NotificationCompat.Builder(context, channel == null || channel.length == 0 ? DEFAULT_CHANNEL : channel[0]);
         } else {
-            builder = new NotificationCompat.Builder(this).setSound(soundUri);
+            builder = new NotificationCompat.Builder(context).setSound(soundUri);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {//8.0以下 && 7.0及以上 设置优先级
                 builder.setPriority(NotificationManager.IMPORTANCE_HIGH);
             } else {
@@ -99,21 +106,17 @@ public class NotificationHelper extends ContextWrapper {
      * 可以通过NotificationCompat.BigTextStyle()显示多行文本
      */
     private NotificationCompat.Builder buildNotificationText(String title, String body, PendingIntent pendingIntent, Bitmap largeIcon, int smallIcon) {
-        NotificationCompat.Builder builder = getNotificationBuilderByChannel()
+        NotificationCompat.Builder builder = getNotificationBuilderByChannel(currentChannle)
                 .setAutoCancel(true)
                 .setContentTitle(title)
                 .setContentText(body).setBadgeIconType(NotificationCompat.BADGE_ICON_LARGE)
                 .setContentIntent(pendingIntent)
+                .setSmallIcon(smallIcon)
+                .setLargeIcon(largeIcon)
                 //.setTimeoutAfter(3000)//时间过后自动取消该通知
                 //.setNumber(1127)//超过999 系统就直接显示999
                 .setBadgeIconType(NotificationCompat.BADGE_ICON_LARGE)//长按应用图标,通知显示的图标类型, 默认显示大图标
                 .setStyle(new NotificationCompat.BigTextStyle().setBigContentTitle(title).bigText(body));
-        if (largeIcon != null) {
-            builder.setLargeIcon(largeIcon);
-        }
-        if (smallIcon != 0) {
-            builder.setSmallIcon(smallIcon);
-        }
         return builder;
     }
 
@@ -126,20 +129,16 @@ public class NotificationHelper extends ContextWrapper {
      * @param actions   在通知消息中添加按钮 最多添加3个
      */
     private NotificationCompat.Builder buildNotificationTextAction(String title, String body, PendingIntent pendingIntent, Bitmap largeIcon, int smallIcon, NotificationCompat.Action... actions) {
-        NotificationCompat.Builder builder = getNotificationBuilderByChannel()
+        NotificationCompat.Builder builder = getNotificationBuilderByChannel(currentChannle)
                 .setAutoCancel(true)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setContentIntent(pendingIntent)
+                .setSmallIcon(smallIcon)
+                .setLargeIcon(largeIcon)
                 .setStyle(new NotificationCompat.BigTextStyle()
                         .setBigContentTitle(title)
                         .bigText(body));
-//        if (largeIcon != null) {
-//            builder.setLargeIcon(largeIcon);
-//        }
-//        if (smallIcon != 0) {
-//            builder.setSmallIcon(smallIcon);
-//        }
 
         if (null != actions && actions.length > 0) {
             for (NotificationCompat.Action action : actions) {
@@ -155,21 +154,17 @@ public class NotificationHelper extends ContextWrapper {
      * 消息折叠时显示小图, 展开后显示大图
      */
     private NotificationCompat.Builder buildNotificationImage(String title, String body, Bitmap imgBitmap, PendingIntent pendingIntent, Bitmap largeIcon, int smallIcon) {
-        NotificationCompat.Builder builder = getNotificationBuilderByChannel()
+        NotificationCompat.Builder builder = getNotificationBuilderByChannel(currentChannle)
                 .setAutoCancel(true)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setContentIntent(pendingIntent)
+                .setSmallIcon(smallIcon)
+                .setLargeIcon(largeIcon)
                 .setStyle(new NotificationCompat.BigPictureStyle()
                         .setBigContentTitle(title)
                         .bigLargeIcon(imgBitmap)
                         .bigPicture(imgBitmap));
-        if (largeIcon != null) {
-            builder.setLargeIcon(largeIcon);
-        }
-        if (smallIcon != 0) {
-            builder.setSmallIcon(smallIcon);
-        }
         return builder;
     }
 
@@ -179,21 +174,17 @@ public class NotificationHelper extends ContextWrapper {
      * 消息折叠时显示小图, 展开后显示大图
      */
     private NotificationCompat.Builder buildNotificationImageAction(String title, String body, Bitmap imgBitmap, PendingIntent pendingIntent, Bitmap largeIcon, int smallIcon, NotificationCompat.Action... actions) {
-        NotificationCompat.Builder builder = getNotificationBuilderByChannel()
+        NotificationCompat.Builder builder = getNotificationBuilderByChannel(currentChannle)
                 .setAutoCancel(true)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setContentIntent(pendingIntent)
+                .setSmallIcon(smallIcon)
+                .setLargeIcon(largeIcon)
                 .setStyle(new NotificationCompat.BigPictureStyle()
                         .setBigContentTitle(title)
                         .bigLargeIcon(imgBitmap)
                         .bigPicture(imgBitmap));
-        if (largeIcon != null) {
-            builder.setLargeIcon(largeIcon);
-        }
-        if (smallIcon != 0) {
-            builder.setSmallIcon(smallIcon);
-        }
 
         if (null != actions && actions.length > 0) {
             for (NotificationCompat.Action action : actions) {

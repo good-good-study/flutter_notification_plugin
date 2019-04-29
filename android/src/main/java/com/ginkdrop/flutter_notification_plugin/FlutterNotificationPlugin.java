@@ -1,12 +1,17 @@
 package com.ginkdrop.flutter_notification_plugin;
 
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.support.v4.app.NotificationManagerCompat;
 import android.text.TextUtils;
 import android.util.Log;
+
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.animation.GlideAnimation;
+import com.bumptech.glide.request.target.SimpleTarget;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -57,7 +62,6 @@ public class FlutterNotificationPlugin implements MethodChannel.MethodCallHandle
                 String stringExtra = intent.getStringExtra(ACTION_NOTIFY_INTENT);
                 int intExtra = intent.getIntExtra(ACTION_NOTIFY_ID, 0);
                 if (ACTION_NOTIFY_INTENT.equals(stringExtra)) {
-                    Log.e(TAG, String.format("stringExtra -> %s ; intExtra - > %s", stringExtra, intExtra));
                     if (eventSink != null) {
                         Map<String, Object> map = new LinkedHashMap<>();
                         map.put("notifyId", intExtra);
@@ -73,59 +77,104 @@ public class FlutterNotificationPlugin implements MethodChannel.MethodCallHandle
     @Override
     public void onListen(Object o, EventChannel.EventSink eventSink) {
         FlutterNotificationPlugin.eventSink = eventSink;
-        Log.e(TAG, String.format("onListen"));
+        Log.e(TAG, "onListen");
     }
 
     @Override
     public void onCancel(Object o) {
-        Log.e(TAG, String.format("onCancel"));
+        Log.e(TAG, "onCancel");
     }
 
     @Override
     public void onMethodCall(MethodCall call, Result result) {
-        if (call.method.equals("areNotificationsEnabled")) {
-            boolean enabled = NotificationManagerCompat.from(registrar.context()).areNotificationsEnabled();
-            result.success(enabled);
-            Log.e(TAG, "enabled -> " + enabled);
-        } else if (call.method.equals("notify")) {
-            if (call.arguments instanceof Map) {
-                Map map = (Map) call.arguments;
-                String channel = (String) map.get("channel");
-                String channelName = (String) map.get("channelName");
-                int iconSmallResId = (int) map.get("iconSmallResId");
-                if ((TextUtils.isEmpty(channel))) return;
-                if ((TextUtils.isEmpty(channelName))) return;
-                if (iconSmallResId == 0) return;
-
-                int iconLargeResId = (int) map.get("iconLargeResId");
-                int soundResId = (int) map.get("soundResId");
-                int notifyId = (int) map.get("notifyId");
-                String title = (String) map.get("title");
-                String message = (String) map.get("message");
-
-                Log.e(TAG, String.format("channel -> %s ; channelName -> %s ; iconResId -> %s ; soundResId -> %s", channel, channelName, iconSmallResId, soundResId));
-                Bitmap largeIcon = iconLargeResId == 0 ? null : BitmapFactory.decodeResource(registrar.context().getResources(), iconLargeResId);
-                Intent intent = new Intent(registrar.context(), registrar.activity().getClass());
-                intent.putExtra(ACTION_NOTIFY_INTENT, ACTION_NOTIFY_INTENT);
-                intent.putExtra(ACTION_NOTIFY_ID, notifyId);
-                PendingIntent pendingIntent = PendingIntent.getActivity(registrar.context(), notifyId, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-                NotificationHelper helper = new NotificationHelper(
-                        registrar.context(),
-                        !TextUtils.isEmpty(channel) ? channel : DEFAULT_CHANNEL,
-                        !TextUtils.isEmpty(channelName) ? channelName : DEFAULT_CHANNEL_NAME,
-                        soundResId
-                );
-                helper.notify(notifyId, helper.buildNotificationText(
-                        title,
-                        message,
-                        pendingIntent,
-                        largeIcon,
-                        iconSmallResId)
-                );
-            }
-            result.success("success");
+        if (call.method.equals("areNotificationsEnabled")) {//通知权限是否开启
+            result.success(areNotificationsEnabled());
+        } else if (call.method.equals("notify")) {//通知
+            parseData(call);
+            result.success(null);
         } else {
             result.notImplemented();
+        }
+    }
+
+    private boolean areNotificationsEnabled() {
+        return NotificationManagerCompat.from(registrar.context()).areNotificationsEnabled();
+    }
+
+    //解析由Flutter传递的数据集
+    private void parseData(MethodCall call) {
+        if (call.arguments instanceof Map) {
+            Map map = (Map) call.arguments;
+            String channel = (String) map.get("channel");
+            String channelName = (String) map.get("channelName");
+            final String iconSmallResName = (String) map.get("iconSmallResName");
+            if ((TextUtils.isEmpty(channel))) {
+                throw new NullPointerException("通道不能为空");
+            }
+            if ((TextUtils.isEmpty(channelName))) {
+                throw new NullPointerException("通道描述不能为空");
+            }
+            if (TextUtils.isEmpty(iconSmallResName)) {
+                throw new NullPointerException("通知图标不能为空");
+            }
+            String iconLargeResName = (String) map.get("iconLargeResName");
+            String largeIconUri = (String) map.get("largeIconUri");
+            String iconType = (String) map.get("iconType");//mipmap或者drawable
+            String messageType = (String) map.get("messageType");//消息类型 text : 文本消息 ,image : 图片消息
+            String soundResName = (String) map.get("soundResName");
+
+            final int notifyId = (int) map.get("notifyId");
+            final String title = (String) map.get("title");
+            final String message = (String) map.get("message");
+
+            //res文件夹下,通过图片名称获取资源id
+            Context context = registrar.context();
+            String packageName = context.getPackageName();
+            try {
+                int iconSmallResId = context.getResources().getIdentifier(TextUtils.isEmpty(iconSmallResName) ? "" : iconSmallResName, iconType, packageName);
+                int iconLargeResId = context.getResources().getIdentifier(TextUtils.isEmpty(iconLargeResName) ? "" : iconLargeResName, iconType, packageName);
+                int soundResId = context.getResources().getIdentifier(TextUtils.isEmpty(soundResName) ? "" : soundResName, "raw", packageName);
+                final Bitmap largeIcon = BitmapFactory.decodeResource(context.getResources(), iconLargeResId);
+                Log.e(TAG, String.format("iconSmallResId->%s,iconLargeResId->%s,soundResId->%s", iconSmallResId, iconLargeResId, soundResId));
+                notify(channel, channelName, notifyId, iconSmallResId, largeIcon, largeIconUri, soundResId, messageType, title, message);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    //显示通知
+    private void notify(String channel, String channelName, final int notifyId, final int iconSmallResId, final Bitmap largeIcon, String largeIconUri, int soundResId, String messageType, final String title, final String message) {
+        Context context = registrar.context();
+        Intent intent = new Intent(context, registrar.activity().getClass());
+        intent.putExtra(ACTION_NOTIFY_INTENT, ACTION_NOTIFY_INTENT);
+        intent.putExtra(ACTION_NOTIFY_ID, notifyId);
+        final PendingIntent pendingIntent = PendingIntent.getActivity(context, notifyId, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        final NotificationHelper helper = new NotificationHelper(
+                context,
+                !TextUtils.isEmpty(channel) ? channel : DEFAULT_CHANNEL,
+                !TextUtils.isEmpty(channelName) ? channelName : DEFAULT_CHANNEL_NAME,
+                soundResId
+        );
+        if ("text".equals(messageType)) {//文本消息
+            helper.notify(notifyId, helper.buildNotificationText(
+                    title,
+                    message,
+                    pendingIntent,
+                    largeIcon,
+                    iconSmallResId));
+        } else {
+            //图片消息
+            Glide.with(context)
+                    .load(largeIconUri)
+                    .asBitmap()
+                    .into(new SimpleTarget<Bitmap>() {
+                        @Override
+                        public void onResourceReady(Bitmap source, GlideAnimation<? super Bitmap> glideAnimation) {
+                            helper.notify(notifyId, helper.buildNotificationImage(title, message, source, pendingIntent, largeIcon, iconSmallResId));
+                        }
+                    });
         }
     }
 }

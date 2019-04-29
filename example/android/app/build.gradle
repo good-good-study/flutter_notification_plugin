@@ -26,13 +26,7 @@ apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
     compileSdkVersion 28
-
-    lintOptions {
-        disable 'InvalidPackage'
-    }
-
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId "com.ginkdrop.flutter_notification_plugin_example"
         minSdkVersion 16
         targetSdkVersion 28
@@ -41,12 +35,43 @@ android {
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            storeFile file("../keys/wechart.jks")
+            storePassword "123456"
+            keyAlias "wechat"
+            keyPassword "123456"
+        }
+        debug {
+            storeFile file("../keys/wechart.jks")
+            storePassword "123456"
+            keyAlias "wechat"
+            keyPassword "123456"
+        }
+    }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig signingConfigs.debug
+            minifyEnabled false
+            multiDexEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+            ndk {
+                // 设置支持的SO库架构
+                abiFilters 'armeabi-v7a'//, 'armeabi', 'x86'//, 'x86_64', 'arm64-v8a'
+            }
         }
+        debug.initWith(buildTypes.debug)
+        debug {
+            debuggable true
+            //debug模式不要过滤cpu架构，容易导致无法找到flutter.lib
+        }
+    }
+
+    lintOptions {
+        abortOnError false
+        checkReleaseBuilds false
+        // 防止在发布的时候出现因MissingTranslation导致Build Failed!
+        disable 'MissingTranslation', 'InvalidPackage'
     }
 }
 
@@ -58,4 +83,5 @@ dependencies {
     testImplementation 'junit:junit:4.13-beta-2'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    implementation 'com.github.bumptech.glide:glide:3.8.0'
 }

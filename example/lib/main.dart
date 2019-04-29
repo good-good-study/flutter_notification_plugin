@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_notification_plugin/flutter_notification_plugin.dart';
 
 void main() => runApp(MyApp());
@@ -12,52 +12,33 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
-  static const MethodChannel _channelMethod = const MethodChannel('android');
+  String title = '假如生活欺骗了你';
+  String message = '不要悲伤，不要心急！' +
+      '忧郁的日子里须要镇静：' +
+      '相信吧，快乐的日子将会来临！' +
+      '心儿永远向往着未来；' +
+      '现在却常是忧郁。' +
+      '一切都是瞬息，一切都将会过去；' +
+      '而那过去了的，就会成为亲切的怀恋。';
+  String url =
+      "https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1556532216241&di=8822c32f4899b3e706765d47fd037233&imgtype=0&src=http%3A%2F%2Fpic31.nipic.com%2F20130804%2F7487939_090818211000_2.jpg";
 
-  @override
-  void initState() {
-    super.initState();
-    initPlatformState();
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    try {
-      final Map resourceMap = await _channelMethod.invokeMethod('getResource');
-      var iconSmallResId = resourceMap['iconSmallResId'];
-      var iconLargeResId = resourceMap['iconLargeResId'];
-      var soundResId = resourceMap['soundResId'];
-      platformVersion = resourceMap['version'];
-
-      print(
-          'iconSmallResId -> $iconSmallResId , iconLargeResId -> $iconLargeResId , soundResId -> $soundResId');
-
-      var notificationPlugin = FlutterNotificationPlugin(
-          'channel', 'channelName', iconSmallResId,
-          iconLargeResId: iconLargeResId, soundResId: soundResId);
-
-      var enabled = await notificationPlugin.areNotificationsEnabled();
-      print('通知权限是否已开启：$enabled');
-
-      notificationPlugin.notify(10086, '标题', '信息',
-          onMessageCallBack: (int notifyId, String message) {
-        print('点击了通知栏 notifyId -> $notifyId , message -> $message');
-      });
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
-    if (!mounted) return;
-
-    setState(() {
-      _platformVersion = platformVersion;
-    });
+  ///发送通知
+  Future<void> notify(MessageType messageType) async {
+    var notificationPlugin = FlutterNotificationPlugin('ic_launcher_round',
+        iconType: IconType.mipmap, soundResName: 'notify_message');
+    var enabled = await notificationPlugin.areNotificationsEnabled();
+    print('通知权限是否已开启：$enabled');
+    await notificationPlugin.notify(
+        notifyId: Random().nextInt(100000),
+        title: title,
+        message: message,
+        iconLargeResName: 'ic_launcher_round',
+        largeIconUri: url,
+        messageType: messageType,
+        onMessageCallBack: (int notifyId, String message) {
+          print('点击了通知栏 notifyId -> $notifyId , message -> $message');
+        });
   }
 
   @override
@@ -65,10 +46,32 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Plugin example app'),
+          title: const Text('通知栏插件->适配Android Pie'),
         ),
-        body: Center(
-          child: Text('Running on: $_platformVersion\n'),
+        body: Container(
+          width: double.infinity,
+          alignment: AlignmentDirectional.center,
+          padding: EdgeInsets.all(30),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              RaisedButton(
+                onPressed: () {
+                  notify(MessageType.text);
+                },
+                child: Text('文本消息'),
+              ),
+              SizedBox(
+                width: 20,
+              ),
+              RaisedButton(
+                onPressed: () {
+                  notify(MessageType.image);
+                },
+                child: Text('图片消息'),
+              )
+            ],
+          ),
         ),
       ),
     );
