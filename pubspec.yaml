@@ -1,8 +1,8 @@
 name: flutter_notification_plugin
-description: A new Flutter plugin.
+description: Flutter notification bar plugin, adapt Android Pie & Android O, support notification bar large text display, support notification large image display
 version: 0.0.1
-author:
-homepage:
+author: xt.sun<xingtao.sun@gmail.com>
+homepage: https://blog.csdn.net/sxt_zls
 
 environment:
   sdk: ">=2.1.0 <3.0.0"
